@@ -19,7 +19,7 @@ class Dispatcher(Log):
             schema['result_data_key']))
         self._data_providers.append(lambda: handler(schema))
 
-    def add_handling(self, handler, schema):
+    def add_handler(self, handler, schema):
         self.logger.debug('init handler.schema "{}.{}"'.format(
             handler.__name__,
             schema['result_data_key']))
@@ -61,6 +61,7 @@ class Dispatcher(Log):
                 continue
             await self._create_task(handler_instance, self._messages)
             return True
+        return False
 
     def _data_provider_in_progress(self, handler_instance):
         return len(self._get_handler_ran_tasks(handler_instance)) > 0
@@ -77,6 +78,7 @@ class Dispatcher(Log):
                     continue
                 await self._create_task(handler_instance, message)
                 return True
+        return False
 
     def _handler_in_progress(self, handler_instance, message):
         handler_ran_tasks = self._get_handler_ran_tasks(handler_instance)
@@ -118,6 +120,8 @@ class Dispatcher(Log):
                     continue
                 await self._create_task(finalize_instance, message)
                 return True
+
+        return False
 
     def _clean_task_pool(self):
         for handler_instances in self._ran_tasks.values():

@@ -1,61 +1,71 @@
 import types
 from microservice_io.dispatcher.base import Base
-from microservice_io.utility import not_found, self_item
+from microservice_io.utility import not_found, get_value_by_path, set_value_by_path
+
+
+class SkipMapping:
+    pass
 
 
 class Mapper(Base):
     def do(self):
-        self._result = {}
-        self._map_fields_data()
-        return self._result
+        result = self._map_fields_data()
+        return result
 
     def _map_fields_data(self):
-        for field_description in self.schema['fields']:
-            out_path = field_description.get('out', not_found)
-            in_path = field_description.get('in', not_found)
-            if in_path is not_found and out_path is not_found:
-                raise Exception('schema field mapping is empty')
-            if in_path is not_found:
-                self._copy_out_in_result(out_path)
+        result = {}
+        for mapping in self.schema['mapping']:
+            in_data = self._get_mapping_in_data(mapping)
+            in_data_type_casted = self._casting_mapping_type_(in_data, mapping)
+            if in_data_type_casted is SkipMapping:
                 continue
-            in_data = self._get_in_data(field_description)
-            if in_data is not_found:
-                raise Exception('schema result_data_key "{}" mapping by path "{}" data is not_found'.format(
-                    self.result_data_key,
-                    in_path))
-            in_data = self._type_casting(in_data, field_description)
-            if out_path is not_found:
-                self._result = in_data
-            else:
-                self._result[out_path] = in_data
+            result = self._set_mapping_out_data(in_data_type_casted, mapping, result)
+        return result
 
-    def _copy_out_in_result(self, out_):
-        for k, v in out_.items():
-            self._result[k] = self._compile_out(v)
+    def _set_mapping_out_data(self, in_data, mapping, result):
+        out_path = mapping.get('out_path', not_found)
+        if out_path is not_found:
+            return in_data
+        else:
+            set_value_by_path(result, out_path, in_data)
+        return result
 
-    def _compile_out(self, out):
-        if isinstance(out, types.FunctionType):
-            return out(self.data)
-        return out
+    def _get_mapping_in_data(self, mapping):
+        in_path = mapping.get('in_path', not_found)
+        in_value = mapping.get('in_value', not_found)
+        default_out = mapping.get('default_out', not_found)
+        if not in_value is not_found:
+            compile_in_value = self._compile_in(in_value)
+        elif not in_path is not_found:
+            compile_in_value = get_value_by_path(in_path, self.data)
 
-    def _get_in_data(self, field_description):
-        in_field_description = field_description.get('in', not_found)
-        if isinstance(in_field_description, types.FunctionType):
-            return in_field_description(self.data)
-        field_data = self._find_data(
-            data=self.data,
-            path=in_field_description,
-            default_data=field_description.get('default_data', not_found)
-        )
-        return field_data
+            if compile_in_value is not_found:
+                compile_in_value = default_out
 
-    def _type_casting(self, data, field_description):
-        if 'set_type' in field_description:
-            type_casting_function = field_description['set_type']
+            if compile_in_value is not_found:
+                raise Exception(
+                    'Error mapping schema, result_data_key "{}", data "in_path" "{}" is not_found and "default_out" in not_found'.format(
+                        self.result_data_key,
+                        in_path,
+                    ))
+        else:
+            raise Exception('Error mapping schema, result_data_key "{}", data "in" is not_found'.format(
+                self.result_data_key,
+            ))
+        return compile_in_value
+
+    def _compile_in(self, in_value):
+        if isinstance(in_value, types.FunctionType):
+            return in_value(self.data)
+        return in_value
+
+    def _casting_mapping_type_(self, data, mapping):
+        if 'set_type' in mapping:
+            type_casting_function = mapping['set_type']
             try:
                 return type_casting_function(data)
             except (TypeError, KeyError, IndexError):
-                field = field_description.get('out')
+                field = mapping.get('out_path')
                 function_name = type_casting_function.__name__
                 raise Exception('schema result_data_key "{}" can not cast field "{}" data "{}" with "{}"'.format(
                     self.result_data_key,
@@ -63,33 +73,3 @@ class Mapper(Base):
                     data,
                     function_name))
         return data
-
-    def _get_nodekey_and_rest_path(self, path):
-        rest_path = []
-        if isinstance(path, list):
-            if len(path) > 1:
-                node_key, rest_path = path[0], path[1:]
-            else:
-                node_key = path[0]
-        else:
-            node_key = path
-        return node_key, rest_path
-
-    def _rest_path_is_empty(self, rest_path):
-        return len(rest_path) == 0
-
-    def _find_data(self, data, path, default_data=not_found):
-        node_key, rest_path = self._get_nodekey_and_rest_path(path)
-        if node_key is self_item:
-            return data
-        if node_key not in data:
-            return default_data
-        node_value = data[node_key]
-
-        if self._rest_path_is_empty(rest_path):
-            return node_value
-
-        return self._find_data(
-            data=node_value,
-            path=rest_path,
-            default_data=default_data)

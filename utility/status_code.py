@@ -59,5 +59,5 @@ class StatusSignal(StatusCode):
     def _move_status_code_from_handler_to_data(self):
         if self.status_code in [self.ERROR, self.INTERRUPT_HANDLING]:
             self.source_data[self.STATUS_KEY] = self._status_code
-        if self.status_code is self.SKIP_HANDLING:
+        if self.status_code == self.SKIP_HANDLING:
             self.source_data[self.result_data_key] = {self.STATUS_KEY: self._status_code}

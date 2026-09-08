@@ -187,7 +187,8 @@ class Base(BaseList, StatusSignal, Log):
             try:
                 # FIXME use class __awaut__ instead of function
                 self.result = await self.do()
-            except:
+            except Exception:
+                self.set_status_error()
                 self.traceback()
 
         if self.check_status_code_is_not_done():
@@ -201,7 +202,8 @@ class Base(BaseList, StatusSignal, Log):
             try:
                 # FIXME use class __awaut__ instead of function
                 self.result = self.do()
-            except:
+            except Exception:
+                self.set_status_error()
                 self.traceback()
 
         if self.check_status_code_is_not_done():

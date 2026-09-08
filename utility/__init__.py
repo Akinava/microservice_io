@@ -68,7 +68,6 @@ def copy_base_instance(base_instance):
 
 
 def get_value_by_path(path, data):
-    # TODO find unnecessary deepcopy regarding that func
     path = deep_copy(path)
     if isinstance(path, list):
         if len(path) == 0:
@@ -81,3 +80,10 @@ def get_value_by_path(path, data):
     except (IndexError, TypeError, KeyError):
         return not_found
     return get_value_by_path(path, data)
+
+
+def set_value_by_path(obj, path, data):
+    if isinstance(path, list):
+        obj = get_value_by_path(path[:-1], obj)
+        path = path[-1]
+    obj[path] = data
